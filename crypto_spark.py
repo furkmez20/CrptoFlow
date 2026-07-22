@@ -1,12 +1,19 @@
 """
-Crypto Price Tracker - Spark Structured Streaming Consumer
+CryptoFlow - Spark Structured Streaming Consumer with Email Alerts
 """
 import sys
+import smtplib
+from email.mime.text import MIMEText
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
 
 ATLAS_URI = "mongodb+srv://furkmez20_db_user:Hitnap129.@cryptoflow.n8fpzx2.mongodb.net/cryptodb.prices?retryWrites=true&w=majority&appName=cryptoflow"
+
+GMAIL_SENDER = "furkmez20@gmail.com"
+GMAIL_APP_PASSWORD = "giui uzgy nspr ylht"
+ALERT_EMAIL = "furkmez20@gmail.com"
+ALERT_THRESHOLD = 2.0
 
 SCHEMA = StructType([
     StructField("id", StringType()),
@@ -17,6 +24,36 @@ SCHEMA = StructType([
     StructField("total_volume", LongType()),
     StructField("timestamp", StringType()),
 ])
+
+def send_email(subject, body):
+    try:
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = GMAIL_SENDER
+        msg["To"] = ALERT_EMAIL
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_SENDER, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_SENDER, ALERT_EMAIL, msg.as_string())
+        print(f"[Alert] Email sent: {subject}")
+    except Exception as e:
+        print(f"[Alert] Email failed: {e}")
+
+def check_alerts(batch_df):
+    rows = batch_df.collect()
+    for row in rows:
+        change = row["price_change_pct_24h"]
+        coin = row["id"].capitalize()
+        price = row["current_price"]
+        if change <= -ALERT_THRESHOLD:
+            send_email(
+                f"CryptoFlow Alert: {coin} dropped {change:.2f}%!",
+                f"{coin} is down {abs(change):.2f}% in the last 24h.\nCurrent price: ${price:,.4f}"
+            )
+        elif change >= ALERT_THRESHOLD:
+            send_email(
+                f"CryptoFlow Alert: {coin} surged {change:.2f}%!",
+                f"{coin} is up {change:.2f}% in the last 24h.\nCurrent price: ${price:,.4f}"
+            )
 
 def main(bootstrap_servers):
     spark = SparkSession.builder \
@@ -50,6 +87,7 @@ def main(bootstrap_servers):
             .save()
         print(f"[Spark] Batch {batch_id} written to MongoDB Atlas")
         batch_df.show(truncate=False)
+        check_alerts(batch_df)
 
     query = parsed.writeStream \
         .foreachBatch(write_to_mongo) \
