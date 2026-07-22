@@ -1,5 +1,5 @@
 """
-Crypto Price Tracker - Streamlit Dashboard
+CryptoFlow - Streamlit Dashboard
 """
 import time
 import streamlit as st
@@ -11,7 +11,8 @@ st.title("CryptoFlow — Real-Time Crypto Price Tracker")
 
 @st.cache_resource
 def get_mongo_client():
-    return MongoClient("mongodb+srv://furkmez20_db_user:Hitnap129.@cryptoflow.n8fpzx2.mongodb.net/?retryWrites=true&w=majority&appName=cryptoflow")
+    uri = st.secrets["MONGO_URI"]
+    return MongoClient(uri)
 
 def load_data():
     client = get_mongo_client()
