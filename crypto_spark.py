@@ -1,7 +1,8 @@
 """
-CryptoFlow - Spark Structured Streaming Consumer with Email Alerts
+CryptoFlow - Spark Structured Streaming Consumer with Email Alerts and Cooldown
 """
 import sys
+import time
 import smtplib
 from email.mime.text import MIMEText
 from pyspark.sql import SparkSession
@@ -9,11 +10,12 @@ from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
 
 ATLAS_URI = "mongodb+srv://furkmez20_db_user:Hitnap129.@cryptoflow.n8fpzx2.mongodb.net/cryptodb.prices?retryWrites=true&w=majority&appName=cryptoflow"
-
 GMAIL_SENDER = "furkmez20@gmail.com"
 GMAIL_APP_PASSWORD = "giui uzgy nspr ylht"
 ALERT_EMAIL = "furkmez20@gmail.com"
 ALERT_THRESHOLD = 2.0
+COOLDOWN_SECONDS = 3600
+last_alert_time = {}
 
 SCHEMA = StructType([
     StructField("id", StringType()),
@@ -41,19 +43,28 @@ def send_email(subject, body):
 def check_alerts(batch_df):
     rows = batch_df.collect()
     for row in rows:
+        coin = row["id"]
         change = row["price_change_pct_24h"]
-        coin = row["id"].capitalize()
         price = row["current_price"]
+        now = time.time()
+
+        if coin in last_alert_time:
+            if now - last_alert_time[coin] < COOLDOWN_SECONDS:
+                print(f"[Alert] Skipping {coin} - cooldown active")
+                continue
+
         if change <= -ALERT_THRESHOLD:
             send_email(
-                f"CryptoFlow Alert: {coin} dropped {change:.2f}%!",
-                f"{coin} is down {abs(change):.2f}% in the last 24h.\nCurrent price: ${price:,.4f}"
+                f"CryptoFlow Alert: {coin.capitalize()} dropped {change:.2f}%!",
+                f"{coin.capitalize()} is down {abs(change):.2f}% in the last 24h.\nCurrent price: ${price:,.4f}"
             )
+            last_alert_time[coin] = now
         elif change >= ALERT_THRESHOLD:
             send_email(
-                f"CryptoFlow Alert: {coin} surged {change:.2f}%!",
-                f"{coin} is up {change:.2f}% in the last 24h.\nCurrent price: ${price:,.4f}"
+                f"CryptoFlow Alert: {coin.capitalize()} surged {change:.2f}%!",
+                f"{coin.capitalize()} is up {change:.2f}% in the last 24h.\nCurrent price: ${price:,.4f}"
             )
+            last_alert_time[coin] = now
 
 def main(bootstrap_servers):
     spark = SparkSession.builder \
