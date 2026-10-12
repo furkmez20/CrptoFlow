@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pymongo import MongoClient
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="CryptoFlow", layout="wide", page_icon="⚡")
 
@@ -338,6 +339,7 @@ if "active_tab" not in st.session_state:
 render_brand_nav()
 st.title("CryptoFlow")
 st.caption("⚡ Live prices powered by CoinGecko · Updates every 30s")
+st_autorefresh(interval=30000, key="datarefresh")
 
 df = load_data()
 predictions_df = load_predictions()

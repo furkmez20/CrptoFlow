@@ -3,3 +3,4 @@ pymongo
 pandas
 dnspython
 plotly
+streamlit-autorefresh
