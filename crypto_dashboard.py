@@ -26,6 +26,10 @@ st.markdown(f"""
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 .stApp {{ background-color: {BG}; }}
+
+/* Hide default Streamlit tab bar */
+.stTabs [data-baseweb="tab-list"] {{ display: none; }}
+
 .brand-nav {{
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 22px; background: {CARD_BG};
@@ -38,8 +42,7 @@ html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
     filter: drop-shadow(0 0 6px {BRAND_PRIMARY_ALT}66);
 }}
 .brand-nav .logo .wordmark span {{ color: {TEXT_MUTED}; font-weight: 500; }}
-.brand-nav .links {{ display: flex; gap: 28px; font-size: 0.92rem; font-weight: 600; color: {TEXT_MUTED}; }}
-.brand-nav .links .active {{ color: {BRAND_PRIMARY}; }}
+.brand-nav .links {{ display: flex; gap: 28px; font-size: 0.92rem; font-weight: 600; color: {TEXT_MUTED}; cursor: pointer; }}
 .brand-nav .status {{ display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: {TEXT_MUTED}; }}
 .pulse-dot {{
     width: 9px; height: 9px; border-radius: 50%; background: {GREEN};
@@ -69,12 +72,27 @@ html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 [data-testid="stMetricValue"] {{ color: {TEXT_MAIN} !important; font-weight: 700 !important; }}
 [data-testid="stMetricDelta"] svg {{ display: none; }}
 div[data-testid="stTextInput"] input,
-div[data-testid="stNumberInput"] input,
-div[data-testid="stSelectbox"] > div {{ background-color: {CARD_BG} !important; border-color: {CARD_BORDER} !important; color: {TEXT_MAIN} !important; }}
-.stButton > button[kind="primary"] {{ background: linear-gradient(90deg, {BRAND_PRIMARY_ALT}, {BRAND_PRIMARY}); border: none; font-weight: 700; }}
+div[data-testid="stNumberInput"] input {{ background-color: {CARD_BG} !important; border-color: {CARD_BORDER} !important; color: {TEXT_MAIN} !important; }}
 div[data-baseweb="select"] > div {{
     background-color: #1E222D !important; color: #FFFFFF !important;
     border-radius: 8px !important; border: 1px solid #2A2E39 !important;
+}}
+/* Fix white buttons */
+.stButton > button {{
+    background-color: {CARD_BG} !important;
+    border: 1px solid {CARD_BORDER} !important;
+    color: {TEXT_MAIN} !important;
+    border-radius: 8px !important;
+}}
+.stButton > button:hover {{
+    border-color: {BRAND_PRIMARY} !important;
+    color: {BRAND_PRIMARY} !important;
+}}
+.stButton > button[kind="primary"] {{
+    background: linear-gradient(90deg, {BRAND_PRIMARY_ALT}, {BRAND_PRIMARY}) !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 700 !important;
 }}
 h1 {{
     background: linear-gradient(90deg, {BRAND_PRIMARY_ALT}, {BRAND_PRIMARY}, #9945ff);
@@ -124,6 +142,7 @@ def resample_coin(coin_df, freq="30min"):
     return coin_df
 
 def render_brand_nav():
+    active = st.session_state.get("active_tab", "Market")
     st.markdown(f"""
     <div class="brand-nav">
         <div class="logo">
@@ -131,15 +150,30 @@ def render_brand_nav():
             <span class="wordmark">Crypto<span>Flow</span></span>
         </div>
         <div class="links">
-            <span class="active">Market</span>
-            <span>Analytics</span>
-            <span>Portfolio</span>
+            <span style="color: {'#3B82F6' if active == 'Market' else '#8b949e'}">Market</span>
+            <span style="color: {'#3B82F6' if active == 'Analytics' else '#8b949e'}">Analytics</span>
+            <span style="color: {'#3B82F6' if active == 'Portfolio' else '#8b949e'}">Portfolio</span>
         </div>
         <div class="status">
             <span class="pulse-dot"></span> Live Updates
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # Tab switcher buttons hidden but functional
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        if st.button("Market", key="nav_market", use_container_width=True):
+            st.session_state.active_tab = "Market"
+            st.rerun()
+    with c2:
+        if st.button("Analytics", key="nav_analytics", use_container_width=True):
+            st.session_state.active_tab = "Analytics"
+            st.rerun()
+    with c3:
+        if st.button("Portfolio", key="nav_portfolio", use_container_width=True):
+            st.session_state.active_tab = "Portfolio"
+            st.rerun()
 
 def make_sparkline(coin_df, color, up):
     fig = go.Figure(go.Scatter(
@@ -165,7 +199,6 @@ def render_coin_cards(df, latest, coin_list, predictions_df=None):
         change = row["price_change_pct_24h"]
         up = change >= 0
         arrow = "▲" if up else "▼"
-
         pred_badge = ""
         if predictions_df is not None and not predictions_df.empty:
             pred_row = predictions_df[predictions_df["coin"] == coin]
@@ -174,7 +207,6 @@ def render_coin_cards(df, latest, coin_list, predictions_df=None):
                 pred_arrow = "📈" if pred["prediction"] == "up" else "📉"
                 conf = pred["confidence"] * 100
                 pred_badge = f'<div class="pred-badge">{pred_arrow} {pred["prediction"].upper()} {conf:.0f}% confidence</div>'
-
         with cols[i]:
             st.markdown(f"""
             <div class="coin-card">
@@ -297,19 +329,22 @@ def render_detail_panel(coin, coin_df, color):
     )
     st.plotly_chart(fig, use_container_width=True)
 
+# Init session state
 if "selected_coin" not in st.session_state:
     st.session_state.selected_coin = "bitcoin"
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = "Market"
 
 render_brand_nav()
 st.title("CryptoFlow")
 st.caption("⚡ Live prices powered by CoinGecko · Updates every 30s")
 
-tab1, tab2 = st.tabs(["📊 Market", "🧠 Analytics"])
-
 df = load_data()
 predictions_df = load_predictions()
+active = st.session_state.active_tab
 
-with tab1:
+# ── MARKET TAB ─────────────────────────────────────────────────────────────
+if active == "Market":
     if df.empty:
         st.info("Waiting for data...")
     else:
@@ -416,91 +451,51 @@ with tab1:
             )
             st.plotly_chart(fig_bar, use_container_width=True)
 
-        st.divider()
-
-        # ML Predictions section
-        st.subheader("🤖 ML Price Predictions")
-        st.caption("Random Forest model trained on historical price & volume data")
-        if not predictions_df.empty:
-            pred_cols = st.columns(len(predictions_df))
-            for i, (_, pred) in enumerate(predictions_df.iterrows()):
-                arrow = "📈" if pred["prediction"] == "up" else "📉"
-                conf = pred["confidence"] * 100
-                auc = pred.get("auc", 0)
-                color_text = GREEN if pred["prediction"] == "up" else RED
-                pred_cols[i].markdown(f"""
-                <div style="background:{CARD_BG}; border:1px solid {CARD_BORDER};
-                     border-radius:12px; padding:14px; text-align:center;">
-                    <div style="font-size:11px; color:{TEXT_MUTED}; text-transform:uppercase;
-                         letter-spacing:1px;">{pred['coin'].capitalize()}</div>
-                    <div style="font-size:1.8rem; margin:4px 0;">{arrow}</div>
-                    <div style="font-size:1rem; font-weight:700; color:{color_text};">
-                        {pred['prediction'].upper()}
-                    </div>
-                    <div style="font-size:0.8rem; color:{TEXT_MUTED}; margin-top:4px;">
-                        {conf:.0f}% confidence
-                    </div>
-                    <div style="font-size:0.75rem; color:{TEXT_MUTED};">
-                        AUC: {auc:.3f}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("Run price_predictor.py to generate predictions")
-
-        st.divider()
-        st.subheader("🔔 Price Alert Subscriptions")
-        st.caption("Get emailed when your coin moves past your threshold")
-        with st.container():
-            f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
-            with f1:
-                sub_email = st.text_input("Email address", placeholder="you@example.com")
-            with f2:
-                sub_coin = st.selectbox("Coin", [c.capitalize() for c in coin_list])
-            with f3:
-                sub_direction = st.selectbox("Alert when", ["Drops by", "Rises by"])
-            with f4:
-                sub_threshold = st.number_input("% threshold", min_value=0.1, max_value=50.0, value=2.0, step=0.5)
-            if st.button("Subscribe", type="primary"):
-                if not sub_email or "@" not in sub_email:
-                    st.error("Please enter a valid email address.")
-                else:
-                    result = save_subscription(sub_email, sub_coin.lower(), sub_threshold,
-                                               "drop" if sub_direction == "Drops by" else "rise")
-                    if result == "created":
-                        st.success(f"✅ Subscribed! You'll get alerts when {sub_coin} {sub_direction.lower()} {sub_threshold}%")
-                    else:
-                        st.info(f"✅ Subscription updated for {sub_coin}!")
-
-        st.markdown("#### Active Subscriptions")
-        check_email = st.text_input("Enter your email to view/manage your subscriptions", key="check_email")
-        if check_email and "@" in check_email:
-            client = get_mongo_client()
-            subs = list(client["cryptodb"].subscriptions.find({"email": check_email}, {"_id": 0}))
-            if subs:
-                for sub in subs:
-                    sc1, sc2, sc3, sc4 = st.columns([2, 2, 2, 1])
-                    sc1.write(sub["coin"].capitalize())
-                    sc2.write(f"{'Drops' if sub['direction'] == 'drop' else 'Rises'} by {sub['threshold']}%")
-                    sc3.write(f"Email: {sub['email']}")
-                    if sc4.button("Remove", key=f"del_{sub['coin']}"):
-                        delete_subscription(check_email, sub["coin"])
-                        st.rerun()
-            else:
-                st.caption("No subscriptions found for this email.")
-
         st.caption(f"Last updated: {df['timestamp'].max()}")
 
-with tab2:
-    st.subheader("🧠 Analytics — Sentiment Analysis")
+# ── ANALYTICS TAB ──────────────────────────────────────────────────────────
+elif active == "Analytics":
     sent_df = load_sentiment()
     sent_raw_df = load_sentiment_raw()
 
+    # ML Predictions
+    st.subheader("🤖 ML Price Predictions")
+    st.caption("Random Forest model trained on historical price & volume data")
+    if not predictions_df.empty:
+        pred_cols = st.columns(len(predictions_df))
+        for i, (_, pred) in enumerate(predictions_df.iterrows()):
+            arrow = "📈" if pred["prediction"] == "up" else "📉"
+            conf = pred["confidence"] * 100
+            auc = pred.get("auc", 0)
+            color_text = GREEN if pred["prediction"] == "up" else RED
+            pred_cols[i].markdown(f"""
+            <div style="background:{CARD_BG}; border:1px solid {CARD_BORDER};
+                 border-radius:12px; padding:14px; text-align:center;">
+                <div style="font-size:11px; color:{TEXT_MUTED}; text-transform:uppercase;
+                     letter-spacing:1px;">{pred['coin'].capitalize()}</div>
+                <div style="font-size:1.8rem; margin:4px 0;">{arrow}</div>
+                <div style="font-size:1rem; font-weight:700; color:{color_text};">
+                    {pred['prediction'].upper()}
+                </div>
+                <div style="font-size:0.8rem; color:{TEXT_MUTED}; margin-top:4px;">
+                    {conf:.0f}% confidence
+                </div>
+                <div style="font-size:0.75rem; color:{TEXT_MUTED};">
+                    AUC: {auc:.3f}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("Run price_predictor.py to generate predictions")
+
+    st.divider()
+
+    # Sentiment section
+    st.subheader("🧠 Sentiment Analysis")
     if sent_df.empty:
         st.info("Sentiment data is being collected. Check back shortly.")
     else:
         latest_sent = sent_df.sort_values("timestamp").groupby("coin").last().reset_index()
-
         overall = latest_sent["avg_sentiment"].mean()
         mood_score = int((overall + 1) / 2 * 100)
         mood_label = "🟢 Bullish" if mood_score > 60 else "🔴 Bearish" if mood_score < 40 else "🟡 Neutral"
@@ -540,9 +535,7 @@ with tab2:
         st.subheader("Sentiment vs Price Overlay")
         selected_coin = st.selectbox("Select coin", [c.capitalize() for c in COIN_COLORS.keys()])
         coin_key = selected_coin.lower()
-
-        price_df = load_data()
-        coin_price = price_df[price_df["id"] == coin_key].sort_values("timestamp")
+        coin_price = df[df["id"] == coin_key].sort_values("timestamp") if not df.empty else pd.DataFrame()
         coin_sent = sent_df[sent_df["coin"] == coin_key].sort_values("timestamp")
 
         if not coin_price.empty and not coin_sent.empty:
@@ -606,3 +599,60 @@ with tab2:
                     st.caption(f"Published: {pub_time} · Coin: {row['coin'].capitalize()}")
         else:
             st.info("News articles are being collected...")
+
+    st.divider()
+
+    # Subscriptions moved here
+    st.subheader("🔔 Price Alert Subscriptions")
+    st.caption("Get emailed when your coin moves past your threshold")
+    coin_list_sub = list(COIN_COLORS.keys())
+    with st.container():
+        f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
+        with f1:
+            sub_email = st.text_input("Email address", placeholder="you@example.com")
+        with f2:
+            sub_coin = st.selectbox("Coin", [c.capitalize() for c in coin_list_sub])
+        with f3:
+            sub_direction = st.selectbox("Alert when", ["Drops by", "Rises by"])
+        with f4:
+            sub_threshold = st.number_input("% threshold", min_value=0.1, max_value=50.0, value=2.0, step=0.5)
+        if st.button("Subscribe", type="primary"):
+            if not sub_email or "@" not in sub_email:
+                st.error("Please enter a valid email address.")
+            else:
+                result = save_subscription(sub_email, sub_coin.lower(), sub_threshold,
+                                           "drop" if sub_direction == "Drops by" else "rise")
+                if result == "created":
+                    st.success(f"✅ Subscribed! You'll get alerts when {sub_coin} {sub_direction.lower()} {sub_threshold}%")
+                else:
+                    st.info(f"✅ Subscription updated for {sub_coin}!")
+
+    st.markdown("#### Active Subscriptions")
+    check_email = st.text_input("Enter your email to view/manage your subscriptions", key="check_email")
+    if check_email and "@" in check_email:
+        client = get_mongo_client()
+        subs = list(client["cryptodb"].subscriptions.find({"email": check_email}, {"_id": 0}))
+        if subs:
+            for sub in subs:
+                sc1, sc2, sc3, sc4 = st.columns([2, 2, 2, 1])
+                sc1.write(sub["coin"].capitalize())
+                sc2.write(f"{'Drops' if sub['direction'] == 'drop' else 'Rises'} by {sub['threshold']}%")
+                sc3.write(f"Email: {sub['email']}")
+                if sc4.button("Remove", key=f"del_{sub['coin']}"):
+                    delete_subscription(check_email, sub["coin"])
+                    st.rerun()
+        else:
+            st.caption("No subscriptions found for this email.")
+
+# ── PORTFOLIO TAB ──────────────────────────────────────────────────────────
+elif active == "Portfolio":
+    st.markdown(f"""
+    <div style="text-align:center; padding: 80px 20px;">
+        <div style="font-size: 4rem; margin-bottom: 16px;">🚀</div>
+        <h2 style="color:{TEXT_MAIN}; font-size: 1.8rem; margin-bottom: 8px;">Portfolio Tracker</h2>
+        <p style="color:{TEXT_MUTED}; font-size: 1rem; max-width: 400px; margin: 0 auto;">
+            User accounts and portfolio tracking are coming soon.
+            Track your holdings, view P&L, and get personalized insights.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
